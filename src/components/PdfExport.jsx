@@ -202,20 +202,50 @@ function PdfExport({ dashboardRef, getRecordedData, systemInfo, realtimeData, is
                 yPos += 8;
 
                 // Add image, potentially split across pages
-                let remainingHeight = imgHeight;
-                let sourceY = 0;
-
-                while (remainingHeight > 0) {
-                    const availableHeight = pageHeight - yPos - margin;
-                    const heightToDraw = Math.min(remainingHeight, availableHeight);
-
+                if (yPos + imgHeight <= pageHeight - margin) {
+                    // 이미지가 한 페이지에 들어감
                     pdf.addImage(imgData, 'PNG', margin, yPos, imgWidth, imgHeight);
+                    yPos += imgHeight;
+                } else {
+                    // 이미지를 여러 페이지에 분할
+                    const ctx = canvas.getContext('2d');
+                    let currentCanvasY = 0;
+                    const canvasWidth = canvas.width;
+                    let remainingHeight = canvas.height;
 
-                    remainingHeight -= heightToDraw;
+                    while (remainingHeight > 0) {
+                        const availableHeight = pageHeight - yPos - margin;
+                        const canvasHeightToCapture = Math.min(
+                            remainingHeight,
+                            (availableHeight / imgHeight) * canvas.height
+                        );
 
-                    if (remainingHeight > 0) {
-                        pdf.addPage();
-                        yPos = margin;
+                        // 캔버스 일부를 새로운 캔버스에 복사
+                        const partCanvas = document.createElement('canvas');
+                        partCanvas.width = canvasWidth;
+                        partCanvas.height = canvasHeightToCapture;
+
+                        const partCtx = partCanvas.getContext('2d');
+                        partCtx.drawImage(
+                            canvas,
+                            0, currentCanvasY,
+                            canvasWidth, canvasHeightToCapture,
+                            0, 0,
+                            canvasWidth, canvasHeightToCapture
+                        );
+
+                        const partImgData = partCanvas.toDataURL('image/png');
+                        const partImgHeight = (canvasHeightToCapture * imgWidth) / canvasWidth;
+
+                        pdf.addImage(partImgData, 'PNG', margin, yPos, imgWidth, partImgHeight);
+
+                        currentCanvasY += canvasHeightToCapture;
+                        remainingHeight -= canvasHeightToCapture;
+
+                        if (remainingHeight > 0) {
+                            pdf.addPage();
+                            yPos = margin;
+                        }
                     }
                 }
             }

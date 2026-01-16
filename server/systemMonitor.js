@@ -42,13 +42,12 @@ export async function getSystemInfo() {
 export async function getRealtimeData() {
     try {
         const [
-            cpuLoad,
+            currentLoad,
             cpuTemp,
             mem,
             fsSize,
             networkStats,
             graphics,
-            currentLoad,
             processes
         ] = await Promise.all([
             si.currentLoad(),
@@ -57,7 +56,6 @@ export async function getRealtimeData() {
             si.fsSize(),
             si.networkStats(),
             si.graphics(),
-            si.currentLoad(),
             si.processes()
         ]);
 
@@ -82,16 +80,29 @@ export async function getRealtimeData() {
             }))
             : [];
 
-        // 메모리 계산 로직 수정 (macOS 호환성 강화)
-        const realUsed = (mem.active && mem.wired)
-            ? mem.active + mem.wired
-            : (mem.used - (mem.buffcache || 0));
+        // 메모리 계산 로직 (플랫폼별 최적화)
+        // macOS: active + wired
+        // Linux: MemTotal - MemAvailable (더 정확함)
+        // Fallback: used - buffcache
+        const getRealMemoryUsed = (memData) => {
+            if (memData.active && memData.wired) {
+                // macOS
+                return memData.active + memData.wired;
+            }
+            if (memData.available !== undefined) {
+                // Linux: MemTotal - MemAvailable가 더 정확함
+                return memData.total - memData.available;
+            }
+            // Fallback
+            return memData.used - (memData.buffcache || 0);
+        };
+        const realUsed = getRealMemoryUsed(mem);
 
         return {
             timestamp: Date.now(),
             cpu: {
-                usage: cpuLoad.currentLoad || 0,
-                usagePerCore: cpuLoad.cpus ? cpuLoad.cpus.map(c => c.load) : [],
+                usage: currentLoad.currentLoad || 0,
+                usagePerCore: currentLoad.cpus ? currentLoad.cpus.map(c => c.load) : [],
                 temperature: cpuTemp.main || null,
                 temperaturePerCore: cpuTemp.cores || []
             },

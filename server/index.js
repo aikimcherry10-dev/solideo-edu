@@ -2,20 +2,39 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import { getSystemInfo, getRealtimeData } from './systemMonitor.js';
+
+dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+
+// CORS 설정
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        // 개발 환경에서는 origin이 없을 수 있음 (같은 포트)
+        if (!origin || allowedOrigins.some(allowed => allowed.includes(origin))) {
+            callback(null, true);
+        } else {
+            callback(new Error(`CORS policy: origin ${origin} is not allowed`));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST']
+};
+
 const io = new Server(httpServer, {
-    cors: {
-        origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-        methods: ['GET', 'POST']
-    }
+    cors: corsOptions
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // REST API: 시스템 기본 정보
